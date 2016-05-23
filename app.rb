@@ -5,45 +5,73 @@ require 'open-uri'
 require 'sinatra'
 require 'thread'
 
-gallery_lock = Mutex.new
-gallery = []
 
-update_gallery_data = lambda do
+
+class Gallery < Array
+  attr_reader :max_length
+  def initialize max_length=100, data=[]
+    super data
+    self.max_length = max_length
+    @lock = Mutex.new
+    cull
+  end
+
+  def add to_add
+    puts "adding: #{to_add.length}"
+    @lock.synchronize do
+      self.concat to_add
+      self.uniq!
+      cull
+    end
+    to_add
+  end
+
+  private
+  attr_writer :max_length
+
+  def cull
+    self[0..-1] = self[[self.length-100, 0].max..-1] || []
+  end
+end
+
+gallery = Gallery.new(50)
+
+def new_gallery_data
   puts "getting new gallery data"
   gallery_data = open('http://imgur.com/gallery.json').read
-  new_data = JSON.parse(gallery_data)['data']
+  JSON.parse(gallery_data)['data']
     .select {|i| i['ext'] == '.gif'}
     .map {|i| i['url'] = "http://imgur.com/#{i['hash']}#{i['ext']}" }
-  gallery_lock.synchronize {
-    gallery += new_data.uniq.sample(100)
-    puts "new gallery data: #{gallery.length}"
-  }
 end
 
-random_image_url = lambda do
-  url = gallery_lock.synchronize { gallery.sample }
-  puts "random url: #{url}"
-  url
+def update_gallery_data(gallery)
+  gallery.add new_gallery_data
+  puts "new gallery data: #{gallery.length}"
 end
 
-update_gallery = lambda do
+def random_image_url(gallery)
+  gallery.sample.tap do |url|
+    puts "random url: #{url}"
+  end
+end
+
+Thread.abort_on_exception = true
+Thread.new do
   loop do
     puts "replacing gallery data"
-    update_gallery_data.call
+    update_gallery_data(gallery)
     puts "sleeping replacer"
     sleep 10
   end
 end
 
-Thread.abort_on_exception = true
-Thread.new(&update_gallery)
 
 
 get '/' do
 """
 <b>SEE WHAT YOU DID?!</b>
 <br>
-<html><body><img src='#{random_image_url.call}'/></body></html>
+<html><body><img src='#{random_image_url(gallery)}'/></body></html>
 """
 end
 
