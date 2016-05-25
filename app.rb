@@ -4,7 +4,9 @@ require 'json'
 require 'open-uri'
 require 'sinatra'
 require 'thread'
+require 'thin'
 
+set :server, 'thin'
 
 
 class Gallery < Array
@@ -65,16 +67,17 @@ Thread.new do
   end
 end
 
-
-
 get '/' do
 """
 <b>SEE WHAT YOU DID?!</b>
 <br>
-<html><body><img src='#{random_image_url(gallery)}'/></body></html>
+<html><body>
+<img src='#{random_image_url(gallery)}'/>
+</body></html>
 """
 end
 
 get '/data' do
+  content_type :json
   gallery.to_json
 end
