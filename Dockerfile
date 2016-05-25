@@ -1,4 +1,6 @@
-FROM ruby:2.2.3
+FROM ruby:2.3.1-alpine
+
+RUN apk update && apk add g++ musl-dev make
 
 ADD ./ /src
 WORKDIR /src
